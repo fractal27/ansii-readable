@@ -1,0 +1,41 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-O2",
+      "-o",
+      "ansiigen",
+      "main.c"
+    ],
+    "directory": "/home/ganon/Personal/repos/create-ansii-art",
+    "file": "/home/ganon/Personal/repos/create-ansii-art/main.c",
+    "output": "/home/ganon/Personal/repos/create-ansii-art/ansiigen"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-O2",
+      "-o",
+      "ansiigen",
+      "ansii.c"
+    ],
+    "directory": "/home/ganon/Personal/repos/create-ansii-art",
+    "file": "/home/ganon/Personal/repos/create-ansii-art/ansii.c",
+    "output": "/home/ganon/Personal/repos/create-ansii-art/ansiigen"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-O2",
+      "-o",
+      "ansiigen",
+      "log.c"
+    ],
+    "directory": "/home/ganon/Personal/repos/create-ansii-art",
+    "file": "/home/ganon/Personal/repos/create-ansii-art/log.c",
+    "output": "/home/ganon/Personal/repos/create-ansii-art/ansiigen"
+  }
+]

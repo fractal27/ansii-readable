@@ -231,7 +231,7 @@ fntattr_to_ansii(char* font_attr){
 }
 unsigned int
 color_to_ansii(char* color) {
-       unsigned long color_hash = hash(color);
+       unsigned long key_hash = hash(color);
        static bool hashes_initialized = false;
        static unsigned long hash_color_black, hash_color_red, hash_color_green, hash_color_yellow, hash_color_blue, hash_color_magenta, hash_color_cyan, hash_color_white;
        if(!hashes_initialized){
@@ -246,14 +246,14 @@ color_to_ansii(char* color) {
               hash_color_white = hash("white");
               hashes_initialized = true;
        }
-       if(color_hash == hash_color_black)   return 0;
-       if(color_hash == hash_color_red)     return 1;
-       if(color_hash == hash_color_green)   return 2;
-       if(color_hash == hash_color_yellow)  return 3;
-       if(color_hash == hash_color_blue)    return 4;
-       if(color_hash == hash_color_magenta) return 5;
-       if(color_hash == hash_color_cyan)    return 6;
-       if(color_hash == hash_color_white)   return 7;
+       if HASH_CHECK(hash_color_black)   return 0;
+       if HASH_CHECK(hash_color_red)     return 1;
+       if HASH_CHECK(hash_color_green)   return 2;
+       if HASH_CHECK(hash_color_yellow)  return 3;
+       if HASH_CHECK(hash_color_blue)    return 4;
+       if HASH_CHECK(hash_color_magenta) return 5;
+       if HASH_CHECK(hash_color_cyan)    return 6;
+       if HASH_CHECK(hash_color_white)   return 7;
        return 9; // default
 }
 
@@ -355,13 +355,39 @@ ansii_transform(FILE* from, FILE* to){
                             switch(ansii_result.value_type){
                                    case VALUE_SINGLE:
                                           if(ansii_result.prefix_ch){
-                                                 fprintf(to,"\e[%c%d%c\n", ansii_result.prefix_ch, ansii_result.value.single, ansii_result.suffix_ch);
+                                                 fprintf(to,"\e[%c%d%c\n", ansii_result.prefix_ch,
+                                                               ansii_result.value.single,
+                                                               ansii_result.suffix_ch);
                                           } else {
-                                                 fprintf(to,"\e[%d%c\n", ansii_result.value.single, ansii_result.suffix_ch);
+                                                 fprintf(to,"\e[%d%c\n",
+                                                               ansii_result.value.single,
+                                                               ansii_result.suffix_ch);
                                           }
                                           break;
-                                          // TODO: VALUE_PAIR
-                                          // TODO: VALUE_TRIPLET
+
+                                   case VALUE_PAIR:
+                                          if(ansii_result.prefix_ch){
+                                                 fprintf(to,"\e[%c%u;%u%c\n", ansii_result.prefix_ch, 
+                                                               ansii_result.value.pair[0], ansii_result.value.pair[1],
+                                                               ansii_result.suffix_ch);
+                                          } else {
+                                                 fprintf(to,"\e[%u;%u%c\n",
+                                                               ansii_result.value.pair[0], ansii_result.value.pair[1],
+                                                               ansii_result.suffix_ch);
+                                          }
+                                          break;
+                                   case VALUE_TRIPLET:
+                                          if(ansii_result.prefix_ch){
+                                                 fprintf(to,"\e[%c%u;%u;%u%c\n", ansii_result.prefix_ch, 
+                                                               ansii_result.value.triplet[0], ansii_result.value.triplet[1], ansii_result.value.triplet[2], 
+                                                               ansii_result.suffix_ch);
+                                          } else {
+                                                 fprintf(to,"\e[%u;%u;%u%c\n",
+                                                               ansii_result.value.triplet[0], ansii_result.value.triplet[1], ansii_result.value.triplet[2],
+                                                               ansii_result.suffix_ch);
+                                          }
+                                          break;
+
                                    default:
                                           break;
                             }
