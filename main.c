@@ -57,7 +57,7 @@ int main(int argc, char** argv){
 
        if(!strcmp(output,"-")){
               foutput = stdout;
-       } else if((foutput = fopen(output, "r")) == NULL){
+       } else if((foutput = fopen(output, "w")) == NULL){
               log_error("output not readable(%s)\n",strerror(errno));
               return errno;
        }
