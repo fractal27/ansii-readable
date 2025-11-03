@@ -1,11 +1,10 @@
+/*  see `enum ansii_type` in header */
+#include "ansii.h"
 #include <stdio.h>
 #include <stdlib.h>
-// #include <unistd.h>
 #include <stdbool.h>
 #include <string.h>
 #include "log.h"
-/*  see `enum ansii_type` in header */
-#include "ansii.h"
 
 #define HASH_CHECK(a)    (key_hash == a)
 
@@ -38,7 +37,7 @@ inline unsigned long
 hash(char str[], struct hash* to_compute)
 {
        if(to_compute && to_compute->computed){
-              // log_verbose("[hash already computed] `%lx`\n",to_compute->hash);
+              log_verbose("[cache] `%lx`\n",to_compute->hash);
               return to_compute->hash;
        }
        unsigned char* ustr = (unsigned char*)str;
@@ -51,7 +50,7 @@ hash(char str[], struct hash* to_compute)
        if(to_compute) {
               to_compute->computed = true;
               to_compute->hash = hash;
-              // log_verbose("[hash computed] `%lx`\n",hash);
+              log_verbose("[computed] `%lx`\n",hash);
        }
        return hash;
 }
@@ -129,16 +128,22 @@ cursor_to_ansii(char* key, struct hash* phash){
            return result;
          }
          log_error("Memmove failed. pair not copied over");
-       } else if(sscanf(key,"move-%u-up",&value_to_read)){    return (struct ansii_t){.value.single=value_to_read,.suffix_ch='A',.valid=true};
-       } else if(sscanf(key,"move-%u-down",&value_to_read)){  return (struct ansii_t){.value.single=value_to_read,.suffix_ch='B',.valid=true};
-       } else if(sscanf(key,"move-%u-right",&value_to_read)){ return (struct ansii_t){.value.single=value_to_read,.suffix_ch='C',.valid=true};
-       } else if(sscanf(key,"move-%u-left",&value_to_read)){  return (struct ansii_t){.value.single=value_to_read,.suffix_ch='D',.valid=true};
-       } else if(sscanf(key,"move-to-beginning-%u-lines-down",&value_to_read)){ return (struct ansii_t){.value.single=value_to_read,.suffix_ch='E',.valid=true};
-       } else if(sscanf(key,"move-to-beginning-%u-lines-up",&value_to_read)){   return (struct ansii_t){.value.single=value_to_read,.suffix_ch='F',.valid=true};
-       } else if(sscanf(key,"move-to-col-%u",&value_to_read)){        return (struct ansii_t){.value.single=value_to_read,.suffix_ch='G',.valid=true};
+       } else if(sscanf(key,"move-%u-up",&value_to_read)){    result.suffix_ch='A';
+       } else if(sscanf(key,"move-%u-down",&value_to_read)){  result.suffix_ch='B';
+       } else if(sscanf(key,"move-%u-right",&value_to_read)){ result.suffix_ch='C';
+       } else if(sscanf(key,"move-%u-left",&value_to_read)){  result.suffix_ch='D';
+       } else if(sscanf(key,"move-to-beginning-%u-lines-down",&value_to_read)){ result.suffix_ch='E';
+       } else if(sscanf(key,"move-to-beginning-%u-lines-up",&value_to_read)){   result.suffix_ch='F';
+       } else if(sscanf(key,"move-to-col-%u",&value_to_read)){                  result.suffix_ch='G';
+       } else {
+              log_error("Invalid value: '%s'\n",key);
+              return (struct ansii_t){.valid=false};
        }
-       log_error("Invalid value: '%s'\n",key);
-       return (struct ansii_t){.valid=false};
+       // if here it means, that you came here from
+       // } else if(sscanf...
+       free(pair_to_read);
+       result.value.single = value_to_read;
+       return result;
 }
 
 struct ansii_t
@@ -190,27 +195,35 @@ scattr_to_ansii(char* key, struct hash* phash){
        }
 
        // log_info("key_hash: %lu, should be %lu\n", key_hash, hash_screen_40_x_25_monochrome_text);
+       struct ansii_t result = {.prefix_ch = '=', .suffix_ch = 'h', .valid=true};
 
-       if HASH_CHECK(hash_screen_40_x_25_monochrome_text)       return (struct ansii_t){'=',.value.single=0,.suffix_ch='h',.valid=true}; // 40 x 25 monochrome (text)
-       if HASH_CHECK(hash_screen_40_x_25_monochrome_text)       return (struct ansii_t){'=',.value.single=1,.suffix_ch='h',.valid=true}; // 40 x 25 color (text)
-       if HASH_CHECK(hash_screen_40_x_25_color_text)            return (struct ansii_t){'=',.value.single=2,.suffix_ch='h',.valid=true}; // 80 x 25 monochrome (text)
-       if HASH_CHECK(hash_screen_80_x_25_monochrome_text)       return (struct ansii_t){'=',.value.single=3,.suffix_ch='h',.valid=true}; // 80 x 25 color (text)
-       if HASH_CHECK(hash_screen_80_x_25_color_text)            return (struct ansii_t){'=',.value.single=4,.suffix_ch='h',.valid=true}; // 320 x 200 4-color (graphics)
-       if HASH_CHECK(hash_screen_320_x_200_4_color_graphics)    return (struct ansii_t){'=',.value.single=5,.suffix_ch='h',.valid=true}; // 320 x 200 monochrome (graphics)
-       if HASH_CHECK(hash_screen_320_x_200_monochrome_graphics) return (struct ansii_t){'=',.value.single=6,.suffix_ch='h',.valid=true}; // 640 x 200 monochrome (graphics)
-       if HASH_CHECK(hash_screen_640_x_200_monochrome_graphics) return (struct ansii_t){'=',.value.single=7,.suffix_ch='h',.valid=true}; // linewrap
-       if HASH_CHECK(hash_screen_linewrap)                      return (struct ansii_t){'=',.value.single=13,.suffix_ch='h',.valid=true}; //320 x 200 color (graphics)
-       if HASH_CHECK(hash_screen_320_x_200_color_graphics)      return (struct ansii_t){'=',.value.single=14,.suffix_ch='h',.valid=true}; //640 x 200 color (16-color graphics)
-       if HASH_CHECK(hash_screen_640_x_350_2_color_graphics)    return (struct ansii_t){'=',.value.single=15,.suffix_ch='h',.valid=true}; //640 x 350 monochrome (2-color graphics)
-       if HASH_CHECK(hash_screen_640_x_350_16_color_graphics)   return (struct ansii_t){'=',.value.single=16,.suffix_ch='h',.valid=true}; //640 x 350 color (16-color graphics)
-       if HASH_CHECK(hash_screen_640_x_480_2_color_graphics)    return (struct ansii_t){'=',.value.single=17,.suffix_ch='h',.valid=true}; //640 x 480 monochrome (2-color graphics)
-       if HASH_CHECK(hash_screen_640_x_480_16_color_graphics)   return (struct ansii_t){'=',.value.single=18,.suffix_ch='h',.valid=true}; //640 x 480 color (16-color graphics)
-       if HASH_CHECK(hash_screen_320_x_200_256_color_graphics)  return (struct ansii_t){'=',.value.single=19,.suffix_ch='h',.valid=true}; //320 x 200 color (256-color graphics)
-       if HASH_CHECK(hash_screen_restore)                       return (struct ansii_t){'?',.value.single=47,.suffix_ch='l',.valid=true}; //restore
-       if HASH_CHECK(hash_screen_save)                          return (struct ansii_t){'?',.value.single=47,.suffix_ch='h',.valid=true}; //restore
-       // case : return (struct ansii_t){'?',47,'h'}; //save
-       log_error("Invalid value: '%s'\n",key);
-       return (struct ansii_t){.valid=false};
+       if HASH_CHECK(hash_screen_40_x_25_monochrome_text)            result.value.single=0; // 40 x 25 monochrome (text)
+       else if HASH_CHECK(hash_screen_40_x_25_monochrome_text)       result.value.single=1; // 40 x 25 color (text)
+       else if HASH_CHECK(hash_screen_40_x_25_color_text)            result.value.single=2; // 80 x 25 monochrome (text)
+       else if HASH_CHECK(hash_screen_80_x_25_monochrome_text)       result.value.single=3; // 80 x 25 color (text)
+       else if HASH_CHECK(hash_screen_80_x_25_color_text)            result.value.single=4; // 320 x 200 4-color (graphics)
+       else if HASH_CHECK(hash_screen_320_x_200_4_color_graphics)    result.value.single=5; // 320 x 200 monochrome (graphics)
+       else if HASH_CHECK(hash_screen_320_x_200_monochrome_graphics) result.value.single=6; // 640 x 200 monochrome (graphics)
+       else if HASH_CHECK(hash_screen_640_x_200_monochrome_graphics) result.value.single=7; // linewrap
+       else if HASH_CHECK(hash_screen_linewrap)                      result.value.single=13; //320 x 200 color (graphics)
+       else if HASH_CHECK(hash_screen_320_x_200_color_graphics)      result.value.single=14; //640 x 200 color (16-color graphics)
+       else if HASH_CHECK(hash_screen_640_x_350_2_color_graphics)    result.value.single=15; //640 x 350 monochrome (2-color graphics)
+       else if HASH_CHECK(hash_screen_640_x_350_16_color_graphics)   result.value.single=16; //640 x 350 color (16-color graphics)
+       else if HASH_CHECK(hash_screen_640_x_480_2_color_graphics)    result.value.single=17; //640 x 480 monochrome (2-color graphics)
+       else if HASH_CHECK(hash_screen_640_x_480_16_color_graphics)   result.value.single=18; //640 x 480 color (16-color graphics)
+       else if HASH_CHECK(hash_screen_320_x_200_256_color_graphics)  result.value.single=19; //320 x 200 color (256-color graphics)
+       else if HASH_CHECK(hash_screen_restore){                      
+              result.prefix_ch='?';
+              result.value.single=47;
+              result.suffix_ch='l'; //restore
+       } else if HASH_CHECK(hash_screen_save){
+              result.prefix_ch='?';
+              result.value.single=47;
+       } else {
+              log_error("Invalid value: '%s'\n",key);
+              return (struct ansii_t){.valid=false};
+       }
+       return result; 
 }
 
 
@@ -224,11 +237,11 @@ fntattr_to_ansii(char* font_attr,struct hash* phash){
 
        if(!hashes_initialized){
          log_info("initializing hashes\n");
-         ansii_hash_fontattr_bold     = hash("bold",NULL);
-         ansii_hash_fontattr_faint    = hash("faint",NULL);
+         ansii_hash_fontattr_bold          = hash("bold",NULL);
+         ansii_hash_fontattr_faint         = hash("faint",NULL);
          ansii_hash_fontattr_italic        = hash("italic",NULL);
          ansii_hash_fontattr_underline     = hash("underline",NULL);
-         ansii_hash_fontattr_blink    = hash("blink",NULL);
+         ansii_hash_fontattr_blink         = hash("blink",NULL);
          ansii_hash_fontattr_inverse       = hash("inverse",NULL);
          ansii_hash_fontattr_invisible     = hash("invisible",NULL);
          ansii_hash_fontattr_strikethrough = hash("strikethrough",NULL);
@@ -299,7 +312,7 @@ color_to_ansii(char* color, struct hash* phash) {
 
 struct ansii_t
 parse_ansii_type(enum ansii_types ansii_type, char* value, struct hash* valhash){
-       struct ansii_t ansii_r = {.value_type = VALUE_SINGLE};
+       struct ansii_t ansii_r = {.value_type = VALUE_SINGLE,.valid=true};
        switch(ansii_type){
          case BG:
            ansii_r = color_to_ansii(value,valhash);
@@ -334,9 +347,9 @@ parse_ansii_type(enum ansii_types ansii_type, char* value, struct hash* valhash)
          case ERASE: return erase_to_ansii(value,valhash);
          case RESET:
            ansii_r.value.single = 0;
-           ansii_r.valid = true;
            break;
-
+         case NONE:
+           ansii_r.valid = false;
        }
        return ansii_r;
 }
@@ -400,6 +413,8 @@ ansii_transform(FILE* from, FILE* to){
            } else if HASH_CHECK(hash_altbuf){     ansii_type = ALTBUF;
            } else if HASH_CHECK(hash_erase){      ansii_type = ERASE;
            } else if HASH_CHECK(hash_reset){      ansii_type = RESET;
+           } else {
+                  ansii_type = NONE;
            }
            char* value = strtok_r(NULL,":",&save_ptr_vkey);
            vhash.computed = false;
@@ -466,7 +481,7 @@ ansii_transform(FILE* from, FILE* to){
              break;
            }
            *end = '\0';
-           fprintf(to,"%s",token_complete); // send to file the string until {{
+           fputs(token_complete,to); // send to file the string until {{
            *end = '{';                 // reset the character
            fflush(to);
          }

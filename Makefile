@@ -9,6 +9,8 @@ ansiigen: $(SOURCES) $(HEADERS)
 
 debug:  $(SOURCES) $(HEADERS)
 	$(CC) $(LIBS) $(SOURCES) $(DFLAGS) -o ansiigen
+tidy:
+	$(TIDY) *.c *.h
 
 install: ansiigen
 	@# instead of using copy, I use cat because

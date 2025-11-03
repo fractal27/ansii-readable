@@ -1,7 +1,8 @@
-#include <errno.h>
-#include <stdio.h>
 #include "ansii.h"
 #include "log.h"
+
+#include <errno.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -59,6 +60,7 @@ int main(int argc, char** argv){
               foutput = stdout;
        } else if((foutput = fopen(output, "w")) == NULL){
               log_error("output not readable(%s)\n",strerror(errno));
+              fclose(finput);
               return errno;
        }
 

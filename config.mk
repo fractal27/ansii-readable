@@ -4,6 +4,7 @@ CC     := gcc
 CFLAGS := -O2
 DFLAGS := $(CFLAGS) -ggdb -fsanitize=address
 PREFIX := /usr/local
+TIDY   := clang-tidy
 
 
 # should be hard-coded

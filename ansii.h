@@ -1,10 +1,12 @@
 #ifndef __ANSII_H
 #define __ANSII_H
+#define __STDC_WANT_LIB_EXT1__ 1
 #include <stdio.h>
 
 enum ansii_types {
        BG, FG, FONT_SET, FONT_RESET, RESET,
-       SCREEN, CURSOR, ALTBUF, ERASE
+       SCREEN, CURSOR, ALTBUF, ERASE,
+       NONE // in case of error(key isn't valid)
 };
 
 struct ansii_t;
