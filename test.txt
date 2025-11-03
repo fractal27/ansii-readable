@@ -2,20 +2,22 @@
 {{fg:green}}
 {{fg:blue}}
 {{fg:magenta}}
-{{font-set:bold}}          hello {{font-reset:bold}}
-{{font-set:faint}}         hello {{font-reset:faint}}
-{{font-set:italic}}        hello {{font-reset:italic}}
-{{font-set:underline}}     hello {{font-reset:underline}}
-{{font-set:blink}}         hello {{font-reset:blink}}
-{{font-set:inverse}}       hello {{font-reset:inverse}}
-{{font-set:invisible}}     hello {{font-reset:invisible}}
+{{font-set:bold}} hello {{font-reset:bold}}
+{{font-set:faint}} hello {{font-reset:faint}}
+{{font-set:italic}} hello {{font-reset:italic}}
+{{font-set:underline}} hello {{font-reset:underline}}
+{{font-set:blink}} hello {{font-reset:blink}}
+{{font-set:inverse}} hello {{font-reset:inverse}}
+{{font-set:invisible}} hello {{font-reset:invisible}}
 {{font-set:strikethrough}} hello {{font-reset:strikethrough}}
-{{screen:40x25 monochrome (text)}}
-{{screen:save}}
-{{cursor:invisible}}
-{{cursor:visible}}
-{{cursor:test-value-notvalid-1}}
-{{altbuf:enable}}
-{{altbuf:disable}}
-{{altbuf:test-value-notvalid-2}}
-{{erase:entire-screen}}
+screen monochrome text: {{screen:40x25 monochrome (text)}}
+saving screen: {{screen:save}}
+cursor invisible: {{cursor:invisible}}
+cursor visible: {{cursor:visible}}
+not valid value: {{cursor:test-value-notvalid-1}}
+altbuf-en:{{altbuf:enable}}
+altbuf-dis:{{altbuf:disable}}
+not valid 2:{{altbuf:test-value-notvalid-2}}
+to erase screen:{{erase:entire-screen}}
+fg RGB:{{fg:255-255-255}}
+bg RGB:{{bg:0-0-0}}

@@ -8,17 +8,18 @@ enum ansii_types {
 };
 
 struct ansii_t;
+struct hash;
 
 
 
-unsigned long hash(char* key);
+unsigned long hash(char* key, struct hash* to_compute);
 
-struct ansii_t erase_to_ansii(char* key);
-struct ansii_t cursor_to_ansii(char* key);
-struct ansii_t altbuf_to_ansii(char* key);
-struct ansii_t scattr_to_ansii(char* key);
-unsigned int fntattr_to_ansii(char* font_attr);
-unsigned int color_to_ansii(char* color);
+struct ansii_t erase_to_ansii(char* key, struct hash* keyhash);
+struct ansii_t cursor_to_ansii(char* key, struct hash* keyhash);
+struct ansii_t altbuf_to_ansii(char* key, struct hash* keyhash);
+struct ansii_t scattr_to_ansii(char* key, struct hash* keyhash);
+unsigned int fntattr_to_ansii(char* font_attr, struct hash* keyhash);
+struct ansii_t color_to_ansii(char* color, struct hash* keyhash);
 // struct ansii_t parse_ansii_type(enum ansi_types ansii_type,char* value);
 
 int ansii_transform(FILE* from, FILE* to);
