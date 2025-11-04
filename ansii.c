@@ -6,15 +6,29 @@
 #include <string.h>
 #include "log.h"
 
-#define HASH_CHECK(a)    (key_hash == a)
+enum {
+    TRIPLET_N = 3,
+    QUINTET_N = 5,
+    ANSII_FG_START                = 30,
+    ANSII_BG_START                = 40,
+    ANSII_FONTATTR_RESET_START    = 20,
+    ANSII_FONTATTR_BOLD           = 1u,
+    ANSII_FONTATTR_FAINT          = 2u,
+    ANSII_FONTATTR_ITALIC         = 3u,
+    ANSII_FONTATTR_UNDERLINE      = 4u,
+    ANSII_FONTATTR_BLINK          = 5u,
+    ANSII_FONTATTR_INVERSE        = 6u,
+    ANSII_FONTATTR_INVISIBLE      = 7u,
+    ANSII_FONTATTR_STRIKETHROUGH  = 8u,
+};
 
-struct ansii_t {
+struct ansii_t {             
        char prefix_ch;
        union {
          unsigned int single;
          unsigned int pair[2];
-         unsigned int triplet[3];
-         unsigned int quintet[5];
+         unsigned int triplet[TRIPLET_N];
+         unsigned int quintet[QUINTET_N];
        } value;
        char suffix_ch;
        enum {
@@ -28,7 +42,7 @@ struct ansii_t {
 };
 
 struct hash {
-       unsigned int hash;
+       unsigned long hash;
        bool computed;
 };
 
@@ -36,21 +50,24 @@ struct hash {
 inline unsigned long
 hash(char str[], struct hash* to_compute)
 {
+#define HASH_BASE 5381
+#define LOG_2_32  5
        if(to_compute && to_compute->computed){
-              log_verbose("[cache] `%lx`\n",to_compute->hash);
+              log_verbose("[already cached] `%lx`\n",to_compute->hash);
               return to_compute->hash;
        }
        unsigned char* ustr = (unsigned char*)str;
-       unsigned long hash = 5381;
-       int c;
+       unsigned long hash = HASH_BASE;
+       int c = *ustr++;
 
-       while ((c = *ustr++))
-         hash = ((hash << 5) + hash) + c; // hash * 33 + c 
+       do {
+         hash = ((hash << LOG_2_32) + hash) + c; // hash * 33 + c 
+       } while ((c = *ustr++));
 
        if(to_compute) {
               to_compute->computed = true;
               to_compute->hash = hash;
-              log_verbose("[computed] `%lx`\n",hash);
+              log_verbose("[just computed] `%lx`\n",hash);
        }
        return hash;
 }
@@ -58,31 +75,15 @@ hash(char str[], struct hash* to_compute)
 struct ansii_t 
 erase_to_ansii(char* key, struct hash* phash){
        unsigned long key_hash = hash(key,phash);
-       static bool hashes_initialized = false;
+       static struct hash h_curstoend, h_curstobeg, h_entire_scr, h_slines, h_curstoendline, h_starttocurs, h_entline;             
 
-       static unsigned long  hash_erase_from_cursor_to_end, hash_erase_from_cursor_to_beginning,
-              hash_erase_entire_screen, hash_erase_saved_lines, erase_from_cursor_to_endline,
-              erase_from_start_line_to_cursor, erase_entire_line;
-             
-
-       if(!hashes_initialized){
-         log_info("initializing hashes\n");
-         hash_erase_from_cursor_to_end = hash("from-cursor-to-end",NULL);
-         hash_erase_from_cursor_to_beginning = hash("from-cursor-to-beginning",NULL);
-         hash_erase_entire_screen = hash("entire-screen",NULL);
-         hash_erase_saved_lines = hash("saved-lines",NULL);
-         erase_from_cursor_to_endline = hash("from-cursor-to-endline",NULL);
-         erase_from_start_line_to_cursor = hash("from-start-line-to-cursor",NULL);
-         erase_entire_line = hash("entire-line",NULL);
-         hashes_initialized = true;
-       }
-       if HASH_CHECK(hash_erase_from_cursor_to_end)       return (struct ansii_t){.value.single=0,.suffix_ch='J',.valid=true};
-       if HASH_CHECK(hash_erase_from_cursor_to_beginning) return (struct ansii_t){.value.single=1,.suffix_ch='J',.valid=true};
-       if HASH_CHECK(hash_erase_entire_screen)       return (struct ansii_t){.value.single=2,.suffix_ch='J',.valid=true};
-       if HASH_CHECK(hash_erase_saved_lines)         return (struct ansii_t){.value.single=3,.suffix_ch='J',.valid=true};
-       if HASH_CHECK(erase_from_cursor_to_endline)        return (struct ansii_t){.value.single=0,.suffix_ch='K',.valid=true};
-       if HASH_CHECK(erase_from_start_line_to_cursor)     return (struct ansii_t){.value.single=1,.suffix_ch='K',.valid=true};
-       if HASH_CHECK(erase_entire_line)         return (struct ansii_t){.value.single=2,.suffix_ch='K',.valid=true};
+       if (key_hash == hash("from-cursor-to-end",&h_curstoend))          return (struct ansii_t){.value.single=0,.suffix_ch='J',.valid=true};
+       if (key_hash == hash("from-cursor-to-beginning",&h_curstobeg))    return (struct ansii_t){.value.single=1,.suffix_ch='J',.valid=true};
+       if (key_hash == hash("entire-screen",&h_entire_scr))              return (struct ansii_t){.value.single=2,.suffix_ch='J',.valid=true};
+       if (key_hash == hash("saved-lines",&h_slines))                    return (struct ansii_t){.value.single=3,.suffix_ch='J',.valid=true};
+       if (key_hash == hash("from-cursor-to-endline",&h_curstoendline))  return (struct ansii_t){.value.single=0,.suffix_ch='K',.valid=true};
+       if (key_hash == hash("from-start-line-to-cursor",&h_starttocurs)) return (struct ansii_t){.value.single=1,.suffix_ch='K',.valid=true};
+       if (key_hash == hash("entire-line",&h_entline))                   return (struct ansii_t){.value.single=2,.suffix_ch='K',.valid=true};
        log_error("Invalid value: '%s'\n",key);
        return (struct ansii_t){.valid=false};
 }
@@ -92,33 +93,23 @@ struct ansii_t
 cursor_to_ansii(char* key, struct hash* phash){
        unsigned long key_hash = hash(key,phash);
        static bool hashes_initialized = false;
+#define VISIBILITY 25
+#define REQ_POS    6
 
-       static unsigned long hash_visible, hash_invisible, hash_to_origin, hash_one_up, hash_save,
-             hash_restore, hash_request_position;
-       unsigned int* pair_to_read = malloc(sizeof(unsigned int)*2);
-       unsigned int value_to_read;
+       static struct hash h_visible, h_invisible, h_to_origin, h_one_up, h_save, h_restore, h_request_position;
+       unsigned int pair_to_read[2];
+       unsigned int value_to_read = 0;
 
-       if(!hashes_initialized){
-         log_info("initializing hashes\n");
-         hash_visible = hash("visible",NULL);
-         hash_invisible = hash("invisible",NULL);
-         hash_to_origin = hash("to-origin",NULL);
-         hash_one_up = hash("one-up",NULL);
-         hash_request_position = hash("request-position",NULL);
-         hash_save = hash("save",NULL);
-         hash_restore = hash("restore",NULL);
-         hashes_initialized = true;
-       }
-       // log_verbose("hash: %lu of (%lu; %lu)",key_hash,hash_visible, hash_invisible);
-       if HASH_CHECK(hash_invisible)        return free(pair_to_read), (struct ansii_t){'?',.value.single=25,.suffix_ch='l',.valid=true}; // ?25h
-       if HASH_CHECK(hash_visible)          return free(pair_to_read), (struct ansii_t){'?',.value.single=25,.suffix_ch='h',.valid=true};  // ?25l
-       if HASH_CHECK(hash_restore)          return free(pair_to_read), (struct ansii_t){.suffix_ch='u',.valid=true};  // ?25l
-       if HASH_CHECK(hash_to_origin)        return free(pair_to_read), (struct ansii_t){.suffix_ch='H',.valid=true};
-       if HASH_CHECK(hash_one_up)           return free(pair_to_read), (struct ansii_t){.suffix_ch='M',.valid=true,.no_bracket=true};
-       if HASH_CHECK(hash_save)             return free(pair_to_read), (struct ansii_t){.suffix_ch='s',.valid=true};
-       if HASH_CHECK(hash_restore)          return free(pair_to_read), (struct ansii_t){.suffix_ch='u',.valid=true};
-       if HASH_CHECK(hash_request_position) return free(pair_to_read), (struct ansii_t){.value.single=6,.suffix_ch='n',.valid=true};
-       // finished static analisys
+       if(key_hash == hash("invisible",&h_invisible))        return (struct ansii_t){'?',.value.single=VISIBILITY,.suffix_ch='l',.valid=true}; // ?25h
+       else if(key_hash == hash("visible",&h_visible))       return (struct ansii_t){'?',.value.single=VISIBILITY,.suffix_ch='h',.valid=true};  // ?25l
+       else if(key_hash == hash("restore",&h_restore))       return (struct ansii_t){.suffix_ch='u',.valid=true};  // ?25l
+       else if(key_hash == hash("to-origin",&h_to_origin))   return (struct ansii_t){.suffix_ch='H',.valid=true};
+       else if(key_hash == hash("one-up",&h_one_up))         return (struct ansii_t){.suffix_ch='M',.valid=true,.no_bracket=true};
+       else if(key_hash == hash("save",&h_save))             return (struct ansii_t){.suffix_ch='s',.valid=true};
+       else if(key_hash == hash("restore",&h_restore))       return (struct ansii_t){.suffix_ch='u',.valid=true};
+       else if(key_hash == hash("request-position",&h_request_position)) 
+              return (struct ansii_t){.value.single=REQ_POS,.suffix_ch='n',.valid=true};
+       // tatic analisys
        struct ansii_t result = {};
        if(sscanf(key,"move-to-%u-%u",&pair_to_read[0],&pair_to_read[1])){
          result.suffix_ch = 'H';
@@ -141,27 +132,28 @@ cursor_to_ansii(char* key, struct hash* phash){
        }
        // if here it means, that you came here from
        // } else if(sscanf...
-       free(pair_to_read);
        result.value.single = value_to_read;
        return result;
+#undef VISIBILITY
 }
 
 struct ansii_t
 altbuf_to_ansii(char* key, struct hash* phash){
        unsigned long key_hash = hash(key,phash);
-       static bool hashes_initialized = false;
+#define ALTBUF_VAL   1049
+       static struct hash h_enable, h_disable;
+       struct ansii_t result = {.prefix_ch='?',.value.single=ALTBUF_VAL,.valid=true};
 
-       static unsigned long hash_enable, hash_disable;
-       if(!hashes_initialized){
-         log_info("initializing hashes\n");
-         hash_enable = hash("enable",NULL);
-         hash_disable = hash("disable",NULL);
-         hashes_initialized = true;
+       if (key_hash == hash("enable",&h_enable)){
+              result.suffix_ch='h';
+       } else if (key_hash == hash("disable",&h_disable)){
+              result.suffix_ch = 'l';
+       } else {
+              result.valid = false;
+              log_error("Invalid value: '%s'\n",key);
        }
-       if HASH_CHECK(hash_enable)  return (struct ansii_t){'?',.value.single = 1049,.suffix_ch = 'h',.valid=true};
-       if HASH_CHECK(hash_disable) return (struct ansii_t){'?',.value.single = 1049,.suffix_ch = 'l',.valid=true};
-       log_error("Invalid value: '%s'\n",key);
-       return (struct ansii_t){.valid=false};
+       return result;
+#undef ALTBUF_VAL
 }
 
 struct ansii_t
@@ -169,56 +161,36 @@ scattr_to_ansii(char* key, struct hash* phash){
        unsigned long key_hash = hash(key,phash);
        static bool hashes_initialized = false;
 
-       static unsigned long hash_screen_40_x_25_monochrome_text, hash_screen_40_x_25_color_text, hash_screen_80_x_25_monochrome_text, hash_screen_80_x_25_color_text, hash_screen_320_x_200_4_color_graphics, hash_screen_320_x_200_monochrome_graphics, hash_screen_640_x_200_monochrome_graphics, hash_screen_linewrap, hash_screen_320_x_200_color_graphics, hash_screen_640_x_350_2_color_graphics, hash_screen_640_x_350_16_color_graphics, hash_screen_640_x_480_2_color_graphics, hash_screen_640_x_480_16_color_graphics, hash_screen_320_x_200_256_color_graphics, hash_screen_restore, hash_screen_save;
+       static struct hash h_screen_40_x_25_monochrome_text, h_screen_40_x_25_color_text, h_screen_80_x_25_monochrome_text, h_screen_80_x_25_color_text, 
+                          h_screen_320_x_200_4_color_graphics, h_screen_320_x_200_monochrome_graphics, h_screen_640_x_200_monochrome_graphics, h_screen_linewrap, 
+                          h_screen_320_x_200_color_graphics, h_screen_640_x_350_2_color_graphics, h_screen_640_x_350_16_color_graphics, h_screen_640_x_480_2_color_graphics, 
+                          h_screen_640_x_480_16_color_graphics, h_screen_320_x_200_256_color_graphics, h_screen_restore, h_screen_save;
+#define ANSII_SCREEN_RESTORE 47
+#define ANSII_SCREEN_SAVE    47
 
-
-
-       if(!hashes_initialized){
-         log_info("initializing hashes\n");
-         hash_screen_40_x_25_monochrome_text        = hash("40x25 monochrome (text)",NULL);
-         hash_screen_40_x_25_color_text             = hash("40x25 color (text)",NULL);
-         hash_screen_80_x_25_monochrome_text        = hash("80x25 monochrome (text)",NULL);
-         hash_screen_80_x_25_color_text             = hash("80x25 color (text)",NULL);
-         hash_screen_320_x_200_4_color_graphics     = hash("320x200 4-color (graphics)",NULL);
-         hash_screen_320_x_200_monochrome_graphics  = hash("320x200 monochrome (graphics)",NULL);
-         hash_screen_640_x_200_monochrome_graphics  = hash("640x200 monochrome (graphics)",NULL);
-         hash_screen_linewrap                       = hash("linewrap",NULL);
-         hash_screen_320_x_200_color_graphics       = hash("320x200 color (graphics)",NULL);
-         hash_screen_640_x_350_2_color_graphics     = hash("640x350 monochrome (2-color graphics)",NULL);
-         hash_screen_640_x_350_16_color_graphics    = hash("640x350 color (16-color graphics)",NULL);
-         hash_screen_640_x_480_2_color_graphics     = hash("640x480 monochrome (2-color graphics)",NULL);
-         hash_screen_640_x_480_16_color_graphics    = hash("640x480 color (16-color graphics)",NULL);
-         hash_screen_320_x_200_256_color_graphics   = hash("320x200 color (graphics)",NULL);
-         hash_screen_restore                        = hash("restore",NULL);
-         hash_screen_save                           = hash("save",NULL);
-         hashes_initialized = true;
-       }
-
-       // log_info("key_hash: %lu, should be %lu\n", key_hash, hash_screen_40_x_25_monochrome_text);
+       log_info("key_hash: %lu, should be %lu\n", key_hash, h_screen_40_x_25_monochrome_text);
        struct ansii_t result = {.prefix_ch = '=', .suffix_ch = 'h', .valid=true};
-
-       if HASH_CHECK(hash_screen_40_x_25_monochrome_text)            result.value.single=0; // 40 x 25 monochrome (text)
-       else if HASH_CHECK(hash_screen_40_x_25_monochrome_text)       result.value.single=1; // 40 x 25 color (text)
-       else if HASH_CHECK(hash_screen_40_x_25_color_text)            result.value.single=2; // 80 x 25 monochrome (text)
-       else if HASH_CHECK(hash_screen_80_x_25_monochrome_text)       result.value.single=3; // 80 x 25 color (text)
-       else if HASH_CHECK(hash_screen_80_x_25_color_text)            result.value.single=4; // 320 x 200 4-color (graphics)
-       else if HASH_CHECK(hash_screen_320_x_200_4_color_graphics)    result.value.single=5; // 320 x 200 monochrome (graphics)
-       else if HASH_CHECK(hash_screen_320_x_200_monochrome_graphics) result.value.single=6; // 640 x 200 monochrome (graphics)
-       else if HASH_CHECK(hash_screen_640_x_200_monochrome_graphics) result.value.single=7; // linewrap
-       else if HASH_CHECK(hash_screen_linewrap)                      result.value.single=13; //320 x 200 color (graphics)
-       else if HASH_CHECK(hash_screen_320_x_200_color_graphics)      result.value.single=14; //640 x 200 color (16-color graphics)
-       else if HASH_CHECK(hash_screen_640_x_350_2_color_graphics)    result.value.single=15; //640 x 350 monochrome (2-color graphics)
-       else if HASH_CHECK(hash_screen_640_x_350_16_color_graphics)   result.value.single=16; //640 x 350 color (16-color graphics)
-       else if HASH_CHECK(hash_screen_640_x_480_2_color_graphics)    result.value.single=17; //640 x 480 monochrome (2-color graphics)
-       else if HASH_CHECK(hash_screen_640_x_480_16_color_graphics)   result.value.single=18; //640 x 480 color (16-color graphics)
-       else if HASH_CHECK(hash_screen_320_x_200_256_color_graphics)  result.value.single=19; //320 x 200 color (256-color graphics)
-       else if HASH_CHECK(hash_screen_restore){                      
+       if (key_hash == hash("40x25 monochrome text",&h_screen_40_x_25_monochrome_text))                  result.value.single=1; // 40 x 25 color 
+       else if (key_hash == hash("40x25 color text",&h_screen_40_x_25_color_text))                       result.value.single=2; // 80 x 25 monochrome 
+       else if (key_hash == hash("80x25 monochrome text",&h_screen_80_x_25_monochrome_text))             result.value.single=3; // 80 x 25 color 
+       else if (key_hash == hash("80x25 color text",&h_screen_80_x_25_color_text))                       result.value.single=4; // 320 x 200 4-color 
+       else if (key_hash == hash("320x200 4 color graphics",&h_screen_320_x_200_4_color_graphics))       result.value.single=5; // 320 x 200 monochrome
+       else if (key_hash == hash("320x200 monochrome graphics",&h_screen_320_x_200_monochrome_graphics)) result.value.single=6; // 640 x 200 monochrome
+       else if (key_hash == hash("640x200 monochrome graphics",&h_screen_640_x_200_monochrome_graphics)) result.value.single=7; // linewrap
+       else if (key_hash == hash("linewrap",&h_screen_linewrap))                                         result.value.single=13; //320 x 200 color
+       else if (key_hash == hash("320x200 color graphics",&h_screen_320_x_200_color_graphics))           result.value.single=14; //640 x 200 color 16col
+       else if (key_hash == hash("640x350 2 color graphics",&h_screen_640_x_350_2_color_graphics))       result.value.single=15; //640 x 350 monochrome 2col
+       else if (key_hash == hash("640x350 16 color graphics",&h_screen_640_x_350_16_color_graphics))     result.value.single=16; //640 x 350 color 16c
+       else if (key_hash == hash("640x480 2 color graphics",&h_screen_640_x_480_2_color_graphics))       result.value.single=17; //640 x 480 monochrome (2-color graphics))
+       else if (key_hash == hash("640x480 16 color graphics",&h_screen_640_x_480_16_color_graphics))     result.value.single=18; //640 x 480 color (16-color_graphics))
+       else if (key_hash == hash("320x200 256 color graphics",&h_screen_320_x_200_256_color_graphics))   result.value.single=19; //320 x 200 color (256-color_graphics))
+       else if (key_hash == hash("restore",&h_screen_restore)){                      
               result.prefix_ch='?';
-              result.value.single=47;
+              result.value.single=ANSII_SCREEN_RESTORE;
               result.suffix_ch='l'; //restore
-       } else if HASH_CHECK(hash_screen_save){
+       } else if (key_hash == hash("save",&h_screen_save)){
               result.prefix_ch='?';
-              result.value.single=47;
+              result.value.single=ANSII_SCREEN_SAVE;
        } else {
               log_error("Invalid value: '%s'\n",key);
               return (struct ansii_t){.valid=false};
@@ -232,65 +204,39 @@ unsigned int
 fntattr_to_ansii(char* font_attr,struct hash* phash){
        unsigned long key_hash = hash(font_attr,phash);
        static bool hashes_initialized = false;
-       static unsigned long ansii_hash_fontattr_bold, ansii_hash_fontattr_faint, ansii_hash_fontattr_italic, ansii_hash_fontattr_underline, ansii_hash_fontattr_blink, ansii_hash_fontattr_inverse, ansii_hash_fontattr_invisible, ansii_hash_fontattr_strikethrough;
-       unsigned int attr_num;
+       static struct hash h_fontattr_bold, h_fontattr_faint, h_fontattr_italic, h_fontattr_underline, h_fontattr_blink, h_fontattr_inverse, h_fontattr_invisible, h_fontattr_strikethrough;
+       unsigned int attr_num = 0;
 
-       if(!hashes_initialized){
-         log_info("initializing hashes\n");
-         ansii_hash_fontattr_bold          = hash("bold",NULL);
-         ansii_hash_fontattr_faint         = hash("faint",NULL);
-         ansii_hash_fontattr_italic        = hash("italic",NULL);
-         ansii_hash_fontattr_underline     = hash("underline",NULL);
-         ansii_hash_fontattr_blink         = hash("blink",NULL);
-         ansii_hash_fontattr_inverse       = hash("inverse",NULL);
-         ansii_hash_fontattr_invisible     = hash("invisible",NULL);
-         ansii_hash_fontattr_strikethrough = hash("strikethrough",NULL);
-         hashes_initialized = true;
-       }
-
-       if HASH_CHECK(ansii_hash_fontattr_bold){                 attr_num = 1u;
-       } else if HASH_CHECK(ansii_hash_fontattr_faint){         attr_num = 2u;
-       } else if HASH_CHECK(ansii_hash_fontattr_italic){        attr_num = 3u;
-       } else if HASH_CHECK(ansii_hash_fontattr_underline){     attr_num = 4u;
-       } else if HASH_CHECK(ansii_hash_fontattr_blink){         attr_num = 5u;
-       } else if HASH_CHECK(ansii_hash_fontattr_inverse){       attr_num = 6u;
-       } else if HASH_CHECK(ansii_hash_fontattr_invisible){     attr_num = 7u;
-       } else if HASH_CHECK(ansii_hash_fontattr_strikethrough){ attr_num = 8u;
+       if (key_hash == hash("bold",&h_fontattr_bold)){                          attr_num = ANSII_FONTATTR_BOLD;
+       } else if (key_hash == hash("faint",&h_fontattr_faint)){                 attr_num = ANSII_FONTATTR_FAINT;
+       } else if (key_hash == hash("italic",&h_fontattr_italic)){               attr_num = ANSII_FONTATTR_ITALIC;
+       } else if (key_hash == hash("underline",&h_fontattr_underline)){         attr_num = ANSII_FONTATTR_UNDERLINE;
+       } else if (key_hash == hash("blink",&h_fontattr_blink)){                 attr_num = ANSII_FONTATTR_BLINK;
+       } else if (key_hash == hash("inverse",&h_fontattr_inverse)){             attr_num = ANSII_FONTATTR_INVERSE;
+       } else if (key_hash == hash("invisible",&h_fontattr_invisible)){         attr_num = ANSII_FONTATTR_INVISIBLE;
+       } else if (key_hash == hash("strikethrough",&h_fontattr_strikethrough)){ attr_num = ANSII_FONTATTR_STRIKETHROUGH;
        } else {
-              log_error("Invalid font attribute: `%u`\n", font_attr);
-              return 0; // reset
+              log_error("Invalid font attribute: `%s`: (cached: %lx, actual: %lx)\n", font_attr,phash->hash,hash(font_attr,NULL));
        }
-       // log_info("(got) attribute: %u\n",attr_num);
+       log_info("(got) attribute: %u\n",attr_num);
        return attr_num;
 }
 struct ansii_t
 color_to_ansii(char* color, struct hash* phash) {
        unsigned long key_hash = hash(color,phash);
        static bool hashes_initialized = false;
-       static unsigned long hash_color_black, hash_color_red, hash_color_green, hash_color_yellow, hash_color_blue, hash_color_magenta, hash_color_cyan, hash_color_white;
-       unsigned int r,g,b,id;
+       static struct hash h_color_black, h_color_red, h_color_green, h_color_yellow, h_color_blue, h_color_magenta, h_color_cyan, h_color_white;
+       unsigned int r=0,g=0,b=0,id=0;
        struct ansii_t result = (struct ansii_t){.value_type=VALUE_SINGLE,.suffix_ch='m',.valid=true};
 
-       if(!hashes_initialized){
-         log_info("initializing hashes\n");
-         hash_color_black = hash("black",NULL);
-         hash_color_red   = hash("red",NULL);
-         hash_color_green = hash("green",NULL);
-         hash_color_yellow= hash("yellow",NULL);
-         hash_color_blue  = hash("blue",NULL);
-         hash_color_magenta = hash("magenta",NULL);
-         hash_color_cyan  = hash("cyan",NULL);
-         hash_color_white = hash("white",NULL);
-         hashes_initialized = true;
-       }
-       if HASH_CHECK(hash_color_black){          result.value.single=0;
-       } else if HASH_CHECK(hash_color_red){     result.value.single=1;
-       } else if HASH_CHECK(hash_color_green){   result.value.single=2;
-       } else if HASH_CHECK(hash_color_yellow){  result.value.single=3;
-       } else if HASH_CHECK(hash_color_blue){    result.value.single=4;
-       } else if HASH_CHECK(hash_color_magenta){ result.value.single=5;
-       } else if HASH_CHECK(hash_color_cyan){    result.value.single=6;
-       } else if HASH_CHECK(hash_color_white){   result.value.single=7;
+       if (key_hash == hash("black",&h_color_black)){           result.value.single=0;
+       } else if (key_hash == hash("red",&h_color_red)){        result.value.single=1;
+       } else if (key_hash == hash("green",&h_color_green)){    result.value.single=2;
+       } else if (key_hash == hash("yellow",&h_color_yellow)){  result.value.single=3;
+       } else if (key_hash == hash("blue",&h_color_blue)){      result.value.single=4;
+       } else if (key_hash == hash("magenta",&h_color_magenta)){result.value.single=5;
+       } else if (key_hash == hash("cyan",&h_color_cyan)){      result.value.single=6;
+       } else if (key_hash == hash("white",&h_color_white)){    result.value.single=7;
        } else if(sscanf(color,"id-%u",&id) == 1){
               result.value.triplet[0] = 8;
               result.value.triplet[1] = 5;
@@ -305,8 +251,8 @@ color_to_ansii(char* color, struct hash* phash) {
               result.value_type = VALUE_QUINTET;
        } else {
               result.valid = false;
+              log_error("invalid color: %s.\n",color);
        }
-       log_verbose("type: %d, value.single=%lu\n",result.value_type,result.value.single);
        return result;
 }
 
@@ -317,17 +263,17 @@ parse_ansii_type(enum ansii_types ansii_type, char* value, struct hash* valhash)
          case BG:
            ansii_r = color_to_ansii(value,valhash);
            if(ansii_r.value_type == VALUE_SINGLE){
-                  ansii_r.value.single += 40;
+                  ansii_r.value.single += ANSII_BG_START;
            } else if (ansii_r.value_type == VALUE_QUINTET){ // rgb values
-                  ansii_r.value.quintet[0] += 40;
+                  ansii_r.value.quintet[0] += ANSII_BG_START;
            }
            break;
          case FG:
            ansii_r = color_to_ansii(value,valhash);
            if(ansii_r.value_type == VALUE_SINGLE){
-                  ansii_r.value.single += 30;
+                  ansii_r.value.single += ANSII_FG_START;
            } else if (ansii_r.value_type == VALUE_QUINTET){ // rgb values
-                  ansii_r.value.quintet[0] += 30;
+                  ansii_r.value.quintet[0] += ANSII_FG_START;
            }
            break;
          case FONT_SET:
@@ -336,7 +282,7 @@ parse_ansii_type(enum ansii_types ansii_type, char* value, struct hash* valhash)
            ansii_r.valid = true;
            break;
          case FONT_RESET:
-           ansii_r.value.single = 20 + fntattr_to_ansii(value,valhash);
+           ansii_r.value.single = ANSII_FONTATTR_RESET_START + fntattr_to_ansii(value,valhash);
            ansii_r.valid = true;
            ansii_r.suffix_ch = 'm';
            break;
@@ -358,35 +304,29 @@ ansii_transform(FILE* from, FILE* to){
        // this assumes file `from` is readable, and `to`
        // is writable, and not equal. Make sure of this before calling this function.
 #define BUFSIZE 1024
+#define STROUT_LEN 8
        char buf[BUFSIZE];
-       char* save_ptr_vkey;
+       char* save_ptr_vkey = NULL;
 
-       enum ansii_types ansii_type;
-       unsigned int read;
+       enum ansii_types ansii_type = NONE;
+       unsigned int read = 0;
        struct ansii_t ansii_result;
-       char* token_complete;
-       char* end;
-       char string_to_output[8];
+       char* token_complete = NULL;
+       char* end = NULL;
+       char string_to_output[STROUT_LEN];
        static bool initialized_hashes = false;
-       unsigned int hash_bg, hash_fg, hash_font_set, hash_font_reset, hash_screen, hash_cursor, 
-          hash_altbuf, hash_erase, hash_reset;
-       unsigned int key_hash;
-       struct hash khash = {};
+       static struct hash h_bg = {},
+                          h_fg = {},
+                          h_font_set = {},
+                          h_font_reset = {},
+                          h_screen = {},
+                          h_cursor = {},
+                          h_altbuf = {},
+                          h_erase = {},
+                          h_reset = {};
+       unsigned int key_hash = 0;
        struct hash vhash = {};
 
-       if(!initialized_hashes){
-         hash_bg         = hash("bg",NULL);
-         hash_fg         = hash("fg",NULL);
-         hash_font_set   = hash("font-set",NULL);
-         hash_font_reset = hash("font-reset",NULL);
-         hash_screen     = hash("screen",NULL);
-         hash_cursor     = hash("cursor",NULL);
-         hash_altbuf     = hash("altbuf",NULL);
-         hash_erase      = hash("erase",NULL);
-         hash_reset      = hash("reset",NULL);
-         
-         initialized_hashes = true;
-       }
 
        while((read = fread(buf,sizeof(char),BUFSIZE,from))){
          // char* token_complete = strtok_r(buf,"{}",&save_ptr_buf);
@@ -400,22 +340,25 @@ ansii_transform(FILE* from, FILE* to){
            }
            *end = 0;
            char* key = strtok_r(token_complete,":",&save_ptr_vkey);
-           // reset and redo hash for new key
-           khash.computed = false;
-           key_hash = hash(key,&khash);
+           // recompute the hash for new key
+           log_verbose("checking key");
+           key_hash = hash(key,NULL);
 
-           if HASH_CHECK(hash_bg){           ansii_type = BG;
-           } else if HASH_CHECK(hash_fg){    ansii_type = FG;
-           } else if HASH_CHECK(hash_font_set){   ansii_type = FONT_SET;
-           } else if HASH_CHECK(hash_font_reset){ ansii_type = FONT_RESET; 
-           } else if HASH_CHECK(hash_screen){     ansii_type = SCREEN; 
-           } else if HASH_CHECK(hash_cursor){     ansii_type = CURSOR; 
-           } else if HASH_CHECK(hash_altbuf){     ansii_type = ALTBUF;
-           } else if HASH_CHECK(hash_erase){      ansii_type = ERASE;
-           } else if HASH_CHECK(hash_reset){      ansii_type = RESET;
+           if(key_hash == hash("bg",&h_bg)){                     ansii_type = BG;
+           } else if (key_hash == hash("fg",&h_fg)){             ansii_type = FG;
+           } else if (key_hash == hash("font-set",&h_font_set)){ ansii_type = FONT_SET;
+           } else if (key_hash == hash("font-reset",&h_font_reset)){
+                                                                 ansii_type = FONT_RESET; 
+           } else if (key_hash == hash("screen",&h_screen)){     ansii_type = SCREEN; 
+           } else if (key_hash == hash("cursor",&h_cursor)){     ansii_type = CURSOR; 
+           } else if (key_hash == hash("altbuf",&h_altbuf)){     ansii_type = ALTBUF;
+           } else if (key_hash == hash("erase",&h_erase)){       ansii_type = ERASE;
+           } else if (key_hash == hash("reset",&h_reset)){       ansii_type = RESET;
            } else {
                   ansii_type = NONE;
+                  log_error("ANSII Key not valid: '%s'\n",key);
            }
+           log_verbose("checking key");
            char* value = strtok_r(NULL,":",&save_ptr_vkey);
            vhash.computed = false;
            ansii_result = parse_ansii_type(ansii_type,value,&vhash);
@@ -481,7 +424,7 @@ ansii_transform(FILE* from, FILE* to){
              break;
            }
            *end = '\0';
-           fputs(token_complete,to); // send to file the string until {{
+           fprintf(to,"%s",token_complete); // send to file the string until {{
            *end = '{';                 // reset the character
            fflush(to);
          }
@@ -489,6 +432,7 @@ ansii_transform(FILE* from, FILE* to){
        return 0;
 
 #undef BUFSIZE
+#undef STROUT_LEN
 }
 
 

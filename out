@@ -2,22 +2,22 @@
 [32m
 [34m
 [35m
-[1m hello [21m
-[2m hello [22m
-[3m hello [23m
-[4m hello [24m
-[5m hello [25m
-[6m hello [26m
-[7m hello [27m
-[8m hello [28m
-screen monochrome text: [=0h
-saving screen: [?47h
-cursor invisible: [?25l
-cursor visible: [?25h
+ hello 
+ hello 
+ hello 
+ hello 
+ hello 
+ hello 
+ hello 
+ hello 
+screen monochrome text: 
+saving screen: 
+cursor invisible: 
+cursor visible: 
 not valid value: 
-altbuf-en:[?1049h
-altbuf-dis:[?1049l
+altbuf-en:
+altbuf-dis:
 not valid 2:
-to erase screen:[2J
+to erase screen:
 fg RGB:[38;2;255;255;255m
 bg RGB:[48;2;0;0;0m

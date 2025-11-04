@@ -12,6 +12,9 @@ debug:  $(SOURCES) $(HEADERS)
 tidy:
 	$(TIDY) *.c *.h
 
+test:
+	./ansiigen -i test.txt -o out -v
+
 install: ansiigen
 	@# instead of using copy, I use cat because
 	@# it doesn't create a new directory if the

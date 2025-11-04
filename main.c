@@ -11,10 +11,10 @@ void usage(char* progname){
 }
 
 int main(int argc, char** argv){
-       int c;
+       int c = 0;
        const char* input = "-",* output = NULL;
-       FILE* finput;
-       FILE* foutput;
+       FILE* finput = stdin;
+       FILE* foutput = NULL;
 
        extern char *optarg;
        extern int optind, optopt;
